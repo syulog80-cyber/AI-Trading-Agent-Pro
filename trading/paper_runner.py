@@ -65,8 +65,6 @@ class PaperTradingRunner:
             symbol = str(opportunity.get("symbol", "")).upper()
             if not symbol or symbol in self.session.paper_trader.positions:
                 continue
-            # Do not close and immediately reopen the same symbol in one cycle.
-            # Wait for the next scan so the exit is represented as a real event.
             if symbol in exited_symbols:
                 continue
             if not opportunity.get("scanner_eligible", False):
@@ -79,14 +77,19 @@ class PaperTradingRunner:
             else:
                 plan = self.controller.get_trade_plan(symbol, timeframe=timeframe)
 
+            # Preserve decision metadata on the virtual position so completed
+            # trades can later be analyzed by strategy, grade and signal.
+            for key in ("signal", "confidence", "grade", "strategy", "opportunity", "timeframe"):
+                if key in opportunity:
+                    plan[key] = opportunity[key]
+            plan.setdefault("timeframe", timeframe)
+
             try:
                 position = self.session.paper_trader.open_position(plan, symbol)
                 opened.append(position)
             except (KeyError, TypeError, ValueError):
                 continue
 
-        # Mark newly opened positions using fresh prices so the reported equity
-        # includes unrealized P&L in the same cycle.
         for symbol in self.session.paper_trader.positions:
             if symbol not in current_prices:
                 current_prices[symbol] = self._current_price(symbol)
