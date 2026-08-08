@@ -121,7 +121,7 @@ class StrategyEngine:
             candidates["Mean Reversion"] += 15
             reasons["Mean Reversion"].append("ADX indicates limited trend strength")
 
-        # Wait is deliberately competitive when evidence conflicts.
+        # A strategy must have enough directional evidence to be actionable.
         directional_votes = sum(
             [bullish_structure, bullish_trend, momentum_bias == "BULLISH"]
         ) + sum(
@@ -131,15 +131,20 @@ class StrategyEngine:
             candidates["Wait"] += 30
             reasons["Wait"].append("Insufficient directional evidence")
 
-        bullish_evidence = bullish_structure and bullish_trend and momentum_bias == "BEARISH"
-        bearish_evidence = bearish_structure and bearish_trend and momentum_bias == "BULLISH"
-        if bullish_evidence or bearish_evidence:
-            candidates["Wait"] += 25
-            reasons["Wait"].append("Trend and momentum conflict")
+        # Conflicting trend and momentum is a hard safety gate. Do this before
+        # selecting the highest candidate so a Pullback score cannot override
+        # the conflict merely because RSI happens to be in the pullback range.
+        evidence_conflict = (
+            bullish_structure and bullish_trend and momentum_bias == "BEARISH"
+        ) or (
+            bearish_structure and bearish_trend and momentum_bias == "BULLISH"
+        )
 
-        # Prevent weak strategies from winning simply because they received
-        # one generic bonus.
-        if max(candidates.values()) < 40:
+        if evidence_conflict:
+            selected = "Wait"
+            candidates["Wait"] = max(candidates["Wait"], 100.0)
+            reasons["Wait"].append("Trend and momentum conflict")
+        elif max(candidates.values()) < 40:
             selected = "Wait"
         else:
             selected = max(candidates, key=candidates.get)
