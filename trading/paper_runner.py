@@ -37,32 +37,33 @@ class PaperTradingRunner:
 
     def step(self, timeframe: str = "1h") -> Dict[str, Any]:
         """Run one read-only scan/update cycle."""
+        closed: List[Dict[str, Any]] = []
+        for symbol in list(self.session.paper_trader.positions):
+            price = self._current_price(symbol)
+            trade = self.session.paper_trader.update_price(symbol, price)
+            if trade is not None:
+                self.journal.record(trade)
+                closed.append(trade)
+
         scan = self.controller.scan_market(
             self.symbols,
             timeframe=timeframe,
             min_confidence=self.session.min_confidence,
         )
 
-        closed: List[Dict[str, Any]] = []
-        for symbol in list(self.session.trader.positions):
-            price = self._current_price(symbol)
-            trade = self.session.update_price(symbol, price)
-            if trade is not None:
-                self.journal.record(trade)
-                closed.append(trade)
-
+        available = self.session.max_positions - len(self.session.paper_trader.positions)
         opened: List[Dict[str, Any]] = []
         for opportunity in scan:
-            symbol = opportunity["symbol"]
-            if symbol in self.session.trader.positions:
-                continue
-            if len(self.session.trader.positions) >= self.session.max_positions:
+            if len(opened) >= available:
                 break
+            symbol = str(opportunity["symbol"]).upper()
+            if symbol in self.session.paper_trader.positions:
+                continue
             plan = self.controller.get_trade_plan(symbol, timeframe=timeframe)
             try:
-                position = self.session.open_trade(symbol, plan)
+                position = self.session.paper_trader.open_position(plan, symbol)
                 opened.append(position)
-            except ValueError:
+            except (KeyError, TypeError, ValueError):
                 continue
 
         return {
@@ -70,15 +71,15 @@ class PaperTradingRunner:
             "opportunities": scan,
             "opened": opened,
             "closed": closed,
-            "positions": list(self.session.trader.positions.values()),
+            "positions": list(self.session.paper_trader.positions.values()),
             "performance": self.performance(),
         }
 
     def performance(self) -> Dict[str, Any]:
         """Return journal and current virtual-account metrics."""
-        summary = self.journal.summary(self.session.trader.initial_balance)
-        summary["balance"] = self.session.trader.balance
-        summary["open_positions"] = len(self.session.trader.positions)
+        summary = self.journal.summary(self.session.paper_trader.initial_balance)
+        summary["balance"] = self.session.paper_trader.balance
+        summary["open_positions"] = len(self.session.paper_trader.positions)
         return summary
 
     def _current_price(self, symbol: str) -> float:
