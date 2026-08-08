@@ -38,10 +38,10 @@ class PaperTradingRunner:
     def step(self, timeframe: str = "1h") -> Dict[str, Any]:
         """Run one read-only scan/update cycle.
 
-        The scanner result is the authoritative opportunity snapshot for this
-        cycle. We use its already-computed risk fields instead of re-running
-        ``get_trade_plan()``, which could produce a different MTF result a few
-        milliseconds later and incorrectly reject an otherwise eligible trade.
+        A scanner result is authoritative when it already contains the full
+        trade-plan fields. Lightweight scanner implementations may return only
+        eligibility metadata; for those, the controller's trade-plan method is
+        used as a compatibility fallback.
         """
         closed: List[Dict[str, Any]] = []
         for symbol in list(self.session.paper_trader.positions):
@@ -69,8 +69,15 @@ class PaperTradingRunner:
             if not opportunity.get("scanner_eligible", False):
                 continue
 
-            plan = dict(opportunity)
-            plan["direction"] = str(opportunity.get("signal", "HOLD")).upper()
+            # Prefer the exact scanner snapshot so live MTF state is not
+            # unnecessarily recalculated. Fall back for minimal/mock scanner
+            # results that do not carry risk fields.
+            required_fields = ("entry_price", "stop_loss", "take_profit", "position_size")
+            if all(opportunity.get(field) is not None for field in required_fields):
+                plan = dict(opportunity)
+                plan["direction"] = str(opportunity.get("signal", "HOLD")).upper()
+            else:
+                plan = self.controller.get_trade_plan(symbol, timeframe=timeframe)
 
             try:
                 position = self.session.paper_trader.open_position(plan, symbol)
