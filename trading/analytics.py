@@ -22,7 +22,7 @@ class PaperTradingAnalytics:
             "trades": total,
             "wins": len(wins),
             "losses": len(losses),
-            "win_rate": len(wins) / total * 100.0 if total else 0.0,
+            "win_rate": len(wins) * 100.0 / total if total else 0.0,
             "net_pnl": sum(pnls),
             "gross_profit": gross_profit,
             "gross_loss": gross_loss,
