@@ -36,16 +36,13 @@ class PaperTradingRunner:
         self.journal = TradeJournal()
 
     def step(self, timeframe: str = "1h") -> Dict[str, Any]:
-        """Run one read-only scan/update cycle.
-
-        A scanner result is authoritative when it already contains the full
-        trade-plan fields. Lightweight scanner implementations may return only
-        eligibility metadata; for those, the controller's trade-plan method is
-        used as a compatibility fallback.
-        """
+        """Run one read-only scan/update cycle."""
         closed: List[Dict[str, Any]] = []
+        current_prices: Dict[str, float] = {}
+
         for symbol in list(self.session.paper_trader.positions):
             price = self._current_price(symbol)
+            current_prices[symbol] = price
             trade = self.session.paper_trader.update_price(symbol, price)
             if trade is not None:
                 self.journal.record(trade)
@@ -69,9 +66,6 @@ class PaperTradingRunner:
             if not opportunity.get("scanner_eligible", False):
                 continue
 
-            # Prefer the exact scanner snapshot so live MTF state is not
-            # unnecessarily recalculated. Fall back for minimal/mock scanner
-            # results that do not carry risk fields.
             required_fields = ("entry_price", "stop_loss", "take_profit", "position_size")
             if all(opportunity.get(field) is not None for field in required_fields):
                 plan = dict(opportunity)
@@ -85,20 +79,27 @@ class PaperTradingRunner:
             except (KeyError, TypeError, ValueError):
                 continue
 
+        # Mark newly opened positions using fresh prices so the reported equity
+        # includes unrealized P&L in the same cycle.
+        for symbol in self.session.paper_trader.positions:
+            if symbol not in current_prices:
+                current_prices[symbol] = self._current_price(symbol)
+
         return {
             "scan_count": len(scan),
             "opportunities": scan,
             "opened": opened,
             "closed": closed,
             "positions": list(self.session.paper_trader.positions.values()),
-            "performance": self.performance(),
+            "prices": current_prices,
+            "performance": self.performance(current_prices),
         }
 
-    def performance(self) -> Dict[str, Any]:
-        """Return journal and current virtual-account metrics."""
+    def performance(self, prices: Dict[str, float] | None = None) -> Dict[str, Any]:
+        """Return realized journal metrics plus current mark-to-market equity."""
         summary = self.journal.summary(self.session.paper_trader.initial_balance)
-        summary["balance"] = self.session.paper_trader.balance
-        summary["open_positions"] = len(self.session.paper_trader.positions)
+        mark = self.session.paper_trader.mark_to_market(prices or {})
+        summary.update(mark)
         return summary
 
     def _current_price(self, symbol: str) -> float:
