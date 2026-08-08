@@ -64,11 +64,11 @@ def main() -> int:
     else:
         for position in result["opened"]:
             print(
-                f"{position['symbol']}: {position['side']} | "
+                f"{position['symbol']}: {position['direction']} | "
                 f"entry={position['entry_price']:.8f} | "
                 f"stop={position['stop_loss']:.8f} | "
                 f"target={position['take_profit']:.8f} | "
-                f"quantity={position['quantity']:.8f}"
+                f"quantity={position['position_size']:.8f}"
             )
 
     performance = result["performance"]
