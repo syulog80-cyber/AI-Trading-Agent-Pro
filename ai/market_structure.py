@@ -58,16 +58,8 @@ class MarketStructure:
         self.swing_left = swing_left
         self.swing_right = swing_right
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
     def analyze(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """Return a complete market-structure analysis.
-
-        The last ``swing_right`` candles are not treated as confirmed
-        swings because there are not enough candles to validate them.
-        """
+        """Return a complete market-structure analysis."""
         self._validate_dataframe(df)
 
         swings = self.detect_swings(df)
@@ -107,10 +99,6 @@ class MarketStructure:
             "events": [asdict(e) for e in events],
             "reasons": reasons,
         }
-
-    # ------------------------------------------------------------------
-    # Swing detection
-    # ------------------------------------------------------------------
 
     def detect_swings(self, df: pd.DataFrame) -> List[SwingPoint]:
         """Detect confirmed swing highs and lows."""
@@ -155,10 +143,6 @@ class MarketStructure:
         swings.sort(key=lambda x: x.position)
         return swings
 
-    # ------------------------------------------------------------------
-    # HH / HL / LH / LL classification
-    # ------------------------------------------------------------------
-
     def classify_structure(
         self,
         highs: List[SwingPoint],
@@ -186,22 +170,13 @@ class MarketStructure:
 
         return result
 
-    # ------------------------------------------------------------------
-    # BOS / CHoCH
-    # ------------------------------------------------------------------
-
     def detect_structure_events(
         self,
         df: pd.DataFrame,
         highs: List[SwingPoint],
         lows: List[SwingPoint],
     ) -> List[StructureEvent]:
-        """Detect structural breaks using closes beyond prior swings.
-
-        BOS is assigned when price breaks a level in the direction of the
-        existing structural trend. CHoCH is assigned when the break is
-        against the previously established direction.
-        """
+        """Detect structural breaks using closes beyond prior swings."""
         if not highs and not lows:
             return []
 
@@ -228,7 +203,13 @@ class MarketStructure:
             if last_high is not None and not closes.empty:
                 crossed_high = closes[closes > last_high.price]
                 if not crossed_high.empty:
-                    pos = start + int(crossed_high.index[0] - closes.index[0])
+                    # ``crossed_high.index[0]`` may be a Timestamp when live
+                    # OHLCV data uses a DatetimeIndex.  Convert the matching
+                    # index label to a positional offset instead of subtracting
+                    # labels (which produces a Timedelta).
+                    crossed_index = crossed_high.index[0]
+                    offset = closes.index.get_loc(crossed_index)
+                    pos = start + int(offset)
                     event_type = "BOS" if structure_direction == "BULLISH" else "CHoCH"
                     events.append(
                         StructureEvent(
@@ -245,7 +226,9 @@ class MarketStructure:
             if last_low is not None and not closes.empty:
                 crossed_low = closes[closes < last_low.price]
                 if not crossed_low.empty:
-                    pos = start + int(crossed_low.index[0] - closes.index[0])
+                    crossed_index = crossed_low.index[0]
+                    offset = closes.index.get_loc(crossed_index)
+                    pos = start + int(offset)
                     event_type = "BOS" if structure_direction == "BEARISH" else "CHoCH"
                     events.append(
                         StructureEvent(
@@ -259,7 +242,6 @@ class MarketStructure:
                     structure_direction = "BEARISH"
                     last_low = None
 
-        # Avoid duplicate events occurring on the same candle/direction.
         unique: List[StructureEvent] = []
         seen = set()
         for event in sorted(events, key=lambda e: e.position):
@@ -269,10 +251,6 @@ class MarketStructure:
                 unique.append(event)
 
         return unique
-
-    # ------------------------------------------------------------------
-    # Scoring
-    # ------------------------------------------------------------------
 
     def _structure_score(
         self,
@@ -340,10 +318,6 @@ class MarketStructure:
                 return "BEARISH"
 
         return "NEUTRAL"
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _last_event(events: List[StructureEvent], event_type: str) -> Optional[Dict[str, Any]]:
