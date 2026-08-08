@@ -27,23 +27,72 @@ def print_cycle(result: dict[str, Any], cycle: int) -> None:
     print("\n" + "=" * 68)
     print(f"PAPER CYCLE #{cycle}")
     print("=" * 68)
-    print(f"Opportunities: {result['scan_count']}")
 
-    for item in result["opportunities"]:
+    opportunities = result["opportunities"]
+    open_positions = result.get("positions", [])
+    closed = result.get("closed", [])
+    opened = result.get("opened", [])
+
+    print(f"Scanner opportunities: {len(opportunities)}")
+    for item in opportunities:
+        symbol = str(item.get("symbol", "")).upper()
+        active = any(str(p.get("symbol", "")).upper() == symbol for p in open_positions)
+        status = "ACTIVE" if active else "NEW"
         print(
-            f"  {item.get('symbol')}: {item.get('signal')} | "
+            f"  {symbol}: {item.get('signal')} | "
             f"confidence={float(item.get('confidence', 0)):.1f} | "
             f"grade={item.get('grade')} | strategy={item.get('strategy')} | "
-            f"opportunity={float(item.get('opportunity', 0)):.1f}"
+            f"opportunity={float(item.get('opportunity', 0)):.1f} | {status}"
         )
 
-    print(f"Opened: {len(result['opened'])} | Closed: {len(result['closed'])}")
+    print("\n--- POSITION EVENTS ---")
+    if opened:
+        for position in opened:
+            print(
+                f"OPENED: {position.get('symbol')} {position.get('direction')} | "
+                f"entry={float(position.get('entry_price', 0)):.8f} | "
+                f"stop={float(position.get('stop_loss', 0)):.8f} | "
+                f"target={float(position.get('take_profit', 0)):.8f}"
+            )
+    if closed:
+        for trade in closed:
+            print(
+                f"CLOSED: {trade.get('symbol')} {trade.get('direction')} | "
+                f"exit={float(trade.get('exit_price', 0)):.8f} | "
+                f"reason={trade.get('exit_reason', 'UNKNOWN')} | "
+                f"P&L=${float(trade.get('pnl', 0)):.2f}"
+            )
+    if not opened and not closed:
+        print("No position entry/exit events this cycle.")
+
+    print("\n--- ACTIVE POSITIONS ---")
+    if not open_positions:
+        print("None")
+    else:
+        prices = result.get("prices", {})
+        for position in open_positions:
+            symbol = str(position.get("symbol", "")).upper()
+            current = prices.get(symbol)
+            current_text = f"{float(current):.8f}" if current is not None else "N/A"
+            print(
+                f"{symbol}: {position.get('direction')} | "
+                f"entry={float(position.get('entry_price', 0)):.8f} | "
+                f"current={current_text} | "
+                f"stop={float(position.get('stop_loss', 0)):.8f} | "
+                f"target={float(position.get('take_profit', 0)):.8f}"
+            )
+
+    print("\n--- PAPER ACCOUNT ---")
+    print(f"Opened this cycle: {len(opened)}")
+    print(f"Closed this cycle: {len(closed)}")
     print(f"Open positions: {performance.get('open_positions', 0)}")
     print(f"Balance: ${performance.get('balance', 0):,.2f}")
     print(f"Unrealized P&L: ${performance.get('unrealized_pnl', 0):,.2f}")
+    print(f"Realized P&L: ${performance.get('realized_pnl', 0):,.2f}")
     print(f"Equity: ${performance.get('equity', 0):,.2f}")
     print(f"Closed trades: {performance.get('closed_trades', 0)}")
     print(f"Win rate: {performance.get('win_rate', 0):.2f}%")
+    print(f"Profit factor: {performance.get('profit_factor', 0):.2f}")
 
 
 def main() -> int:
