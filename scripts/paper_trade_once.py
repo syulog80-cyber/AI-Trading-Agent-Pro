@@ -73,12 +73,16 @@ def main() -> int:
 
     performance = result["performance"]
     print("\n--- PAPER ACCOUNT ---")
-    print(f"Balance:        ${performance.get('balance', args.balance):,.2f}")
-    print(f"Open positions: {performance.get('open_positions', 0)}")
-    print(f"Total trades:   {performance.get('total_trades', 0)}")
-    print(f"Win rate:       {performance.get('win_rate', 0):.2f}%")
-    print(f"Net P&L:        ${performance.get('net_pnl', 0):,.2f}")
-    print(f"Profit factor:  {performance.get('profit_factor', 0):.2f}")
+    print(f"Balance:          ${performance.get('balance', args.balance):,.2f}")
+    print(f"Available balance: ${performance.get('balance', args.balance):,.2f}")
+    print(f"Position value:    ${performance.get('position_value', 0.0):,.2f}")
+    print(f"Realized P&L:     ${performance.get('realized_pnl', 0.0):,.2f}")
+    print(f"Unrealized P&L:   ${performance.get('unrealized_pnl', 0.0):,.2f}")
+    print(f"Equity:            ${performance.get('equity', args.balance):,.2f}")
+    print(f"Open positions:    {performance.get('open_positions', 0)}")
+    print(f"Total trades:      {performance.get('total_trades', 0)}")
+    print(f"Win rate:          {performance.get('win_rate', 0):.2f}%")
+    print(f"Profit factor:     {performance.get('profit_factor', 0):.2f}")
 
     print("\nPAPER TRADING CYCLE COMPLETED")
     print("No real orders were submitted.")
