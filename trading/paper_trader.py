@@ -107,6 +107,48 @@ class PaperTrader:
         self.closed_trades.append(trade)
         return trade
 
+    def mark_to_market(self, prices: Dict[str, float]) -> Dict[str, Any]:
+        """Value open virtual positions using supplied current prices."""
+        unrealized = 0.0
+        position_value = 0.0
+        details: List[Dict[str, Any]] = []
+
+        for symbol, position in self.positions.items():
+            if symbol not in prices:
+                continue
+            price = float(prices[symbol])
+            if price <= 0:
+                raise ValueError("current prices must be positive")
+
+            if position["direction"] == "BUY":
+                pnl = (price - position["entry_price"]) * position["position_size"]
+            else:
+                pnl = (position["entry_price"] - price) * position["position_size"]
+
+            value = price * position["position_size"]
+            unrealized += pnl
+            position_value += value
+            details.append({
+                "symbol": symbol,
+                "direction": position["direction"],
+                "entry_price": position["entry_price"],
+                "current_price": price,
+                "position_value": value,
+                "unrealized_pnl": pnl,
+            })
+
+        realized_pnl = self.balance - self.initial_balance
+        equity = self.balance + unrealized
+        return {
+            "balance": self.balance,
+            "realized_pnl": realized_pnl,
+            "unrealized_pnl": unrealized,
+            "equity": equity,
+            "position_value": position_value,
+            "open_positions": len(self.positions),
+            "positions": details,
+        }
+
     def summary(self) -> Dict[str, Any]:
         """Return basic paper-trading performance statistics."""
         wins = sum(1 for trade in self.closed_trades if trade["pnl"] > 0)
