@@ -36,7 +36,13 @@ class PaperTradingRunner:
         self.journal = TradeJournal()
 
     def step(self, timeframe: str = "1h") -> Dict[str, Any]:
-        """Run one read-only scan/update cycle."""
+        """Run one read-only scan/update cycle.
+
+        The scanner result is the authoritative opportunity snapshot for this
+        cycle. We use its already-computed risk fields instead of re-running
+        ``get_trade_plan()``, which could produce a different MTF result a few
+        milliseconds later and incorrectly reject an otherwise eligible trade.
+        """
         closed: List[Dict[str, Any]] = []
         for symbol in list(self.session.paper_trader.positions):
             price = self._current_price(symbol)
@@ -56,10 +62,16 @@ class PaperTradingRunner:
         for opportunity in scan:
             if len(opened) >= available:
                 break
-            symbol = str(opportunity["symbol"]).upper()
-            if symbol in self.session.paper_trader.positions:
+
+            symbol = str(opportunity.get("symbol", "")).upper()
+            if not symbol or symbol in self.session.paper_trader.positions:
                 continue
-            plan = self.controller.get_trade_plan(symbol, timeframe=timeframe)
+            if not opportunity.get("scanner_eligible", False):
+                continue
+
+            plan = dict(opportunity)
+            plan["direction"] = str(opportunity.get("signal", "HOLD")).upper()
+
             try:
                 position = self.session.paper_trader.open_position(plan, symbol)
                 opened.append(position)
