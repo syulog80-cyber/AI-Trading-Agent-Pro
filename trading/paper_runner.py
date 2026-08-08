@@ -39,6 +39,7 @@ class PaperTradingRunner:
         """Run one read-only scan/update cycle."""
         closed: List[Dict[str, Any]] = []
         current_prices: Dict[str, float] = {}
+        exited_symbols = set()
 
         for symbol in list(self.session.paper_trader.positions):
             price = self._current_price(symbol)
@@ -47,6 +48,7 @@ class PaperTradingRunner:
             if trade is not None:
                 self.journal.record(trade)
                 closed.append(trade)
+                exited_symbols.add(symbol)
 
         scan = self.controller.scan_market(
             self.symbols,
@@ -62,6 +64,10 @@ class PaperTradingRunner:
 
             symbol = str(opportunity.get("symbol", "")).upper()
             if not symbol or symbol in self.session.paper_trader.positions:
+                continue
+            # Do not close and immediately reopen the same symbol in one cycle.
+            # Wait for the next scan so the exit is represented as a real event.
+            if symbol in exited_symbols:
                 continue
             if not opportunity.get("scanner_eligible", False):
                 continue
