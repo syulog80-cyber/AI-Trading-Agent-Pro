@@ -41,18 +41,11 @@ class ConfidenceEngine:
         momentum_score = self._score(momentum, "score")
         strategy_score = self._score(strategy, "score")
 
-        direction = str(
-            strategy.get("direction", strategy.get("signal", "HOLD"))
-        ).upper()
+        direction = str(strategy.get("direction", strategy.get("signal", "HOLD"))).upper()
         momentum_bias = str(momentum.get("bias", "NEUTRAL")).upper()
-        trend_bias = str(
-            trend.get("bias", trend.get("direction", "NEUTRAL"))
-        ).upper()
-        structure_bias = str(
-            structure.get("direction", structure.get("trend", "NEUTRAL"))
-        ).upper()
+        trend_bias = str(trend.get("bias", trend.get("direction", "NEUTRAL"))).upper()
+        structure_bias = str(structure.get("direction", structure.get("trend", "NEUTRAL"))).upper()
 
-        # Evidence weights intentionally sum to 100.
         base = (
             structure_score * 0.30
             + trend_score * 0.25
@@ -91,8 +84,6 @@ class ConfidenceEngine:
             conflict_penalty += 5
             penalties.append("Strategy direction is HOLD")
 
-        # Agreement bonus is intentionally modest so it cannot overwhelm a
-        # genuine risk or directional conflict.
         agreement = self._agreement(direction, structure_bias, trend_bias, momentum_bias)
         agreement_bonus = agreement * 5.0
 
@@ -122,11 +113,13 @@ class ConfidenceEngine:
         else:
             strength = "VERY WEAK"
 
+        hard_conflict = conflict_penalty >= 20
         tradable = (
             direction in {"BUY", "SELL"}
             and confidence >= self.minimum_confidence
             and bool(risk.get("tradable", False))
-            and not penalties[:1] == ["Strategy direction is HOLD"]
+            and not hard_conflict
+            and direction != "HOLD"
         )
 
         reasons = [
@@ -135,6 +128,8 @@ class ConfidenceEngine:
         ]
         if agreement_bonus:
             reasons.append(f"Agreement bonus: +{agreement_bonus:.1f}")
+        if hard_conflict:
+            reasons.append("Hard directional conflict blocks trade")
         reasons.extend(penalties)
 
         return {
@@ -144,6 +139,7 @@ class ConfidenceEngine:
             "agreement": agreement,
             "agreement_bonus": agreement_bonus,
             "conflict_penalty": conflict_penalty,
+            "hard_conflict": hard_conflict,
             "tradable": tradable,
             "direction": direction,
             "reasons": reasons,
