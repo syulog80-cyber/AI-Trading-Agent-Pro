@@ -59,7 +59,7 @@ def print_cycle(result: dict[str, Any], cycle: int) -> None:
             print(
                 f"CLOSED: {trade.get('symbol')} {trade.get('direction')} | "
                 f"exit={float(trade.get('exit_price', 0)):.8f} | "
-                f"reason={trade.get('exit_reason', 'UNKNOWN')} | "
+                f"reason={trade.get('reason', 'UNKNOWN')} | "
                 f"P&L=${float(trade.get('pnl', 0)):.2f}"
             )
     if not opened and not closed:
@@ -90,9 +90,10 @@ def print_cycle(result: dict[str, Any], cycle: int) -> None:
     print(f"Unrealized P&L: ${performance.get('unrealized_pnl', 0):,.2f}")
     print(f"Realized P&L: ${performance.get('realized_pnl', 0):,.2f}")
     print(f"Equity: ${performance.get('equity', 0):,.2f}")
-    print(f"Closed trades: {performance.get('closed_trades', 0)}")
+    print(f"Closed trades: {performance.get('total_trades', 0)}")
     print(f"Win rate: {performance.get('win_rate', 0):.2f}%")
-    print(f"Profit factor: {performance.get('profit_factor', 0):.2f}")
+    profit_factor = performance.get("profit_factor", 0)
+    print(f"Profit factor: {profit_factor if profit_factor == float('inf') else f'{profit_factor:.2f}'}")
 
 
 def main() -> int:
