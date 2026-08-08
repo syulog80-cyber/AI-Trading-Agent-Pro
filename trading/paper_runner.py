@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List
 
+from trading.analytics import PaperTradingAnalytics
 from trading.paper_session import PaperTradingSession
 from trading.trade_journal import TradeJournal
 
@@ -77,8 +78,6 @@ class PaperTradingRunner:
             else:
                 plan = self.controller.get_trade_plan(symbol, timeframe=timeframe)
 
-            # Preserve decision metadata on the virtual position so completed
-            # trades can later be analyzed by strategy, grade and signal.
             for key in ("signal", "confidence", "grade", "strategy", "opportunity", "timeframe"):
                 if key in opportunity:
                     plan[key] = opportunity[key]
@@ -105,10 +104,12 @@ class PaperTradingRunner:
         }
 
     def performance(self, prices: Dict[str, float] | None = None) -> Dict[str, Any]:
-        """Return realized journal metrics plus current mark-to-market equity."""
+        """Return realized journal metrics, mark-to-market equity and breakdowns."""
         summary = self.journal.summary(self.session.paper_trader.initial_balance)
         mark = self.session.paper_trader.mark_to_market(prices or {})
+        analytics = PaperTradingAnalytics(self.journal.trades).report()
         summary.update(mark)
+        summary["analytics"] = analytics
         return summary
 
     def _current_price(self, symbol: str) -> float:
