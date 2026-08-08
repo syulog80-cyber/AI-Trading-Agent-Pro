@@ -37,7 +37,7 @@ class IndicatorEngine:
         avg_loss = loss.ewm(alpha=1 / 14, adjust=False, min_periods=14).mean()
         rs = avg_gain / avg_loss.replace(0, pd.NA)
         df["RSI"] = 100 - (100 / (1 + rs))
-        df["RSI"] = df["RSI"].fillna(50.0)
+        df["RSI"] = pd.to_numeric(df["RSI"], errors="coerce").fillna(50.0)
 
         # MACD(12, 26, 9).
         ema12 = close.ewm(span=12, adjust=False).mean()
@@ -78,7 +78,7 @@ class IndicatorEngine:
         # Volume confirmation.
         df["VOL_SMA20"] = df["volume"].rolling(20, min_periods=1).mean()
         df["VOLUME_RATIO"] = df["volume"] / df["VOL_SMA20"].replace(0, pd.NA)
-        df["VOLUME_RATIO"] = df["VOLUME_RATIO"].fillna(1.0)
+        df["VOLUME_RATIO"] = pd.to_numeric(df["VOLUME_RATIO"], errors="coerce").fillna(1.0)
 
         # Useful trend context for downstream consumers.
         df["EMA20"] = close.ewm(span=20, adjust=False).mean()
