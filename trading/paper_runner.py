@@ -13,7 +13,8 @@ class PaperTradingRunner:
     """Coordinate scanner, trade plans and virtual positions.
 
     This class never submits exchange orders. One ``step`` performs one scan
-    cycle and updates existing virtual positions using current market prices.
+    cycle and updates existing virtual positions using current market prices
+    and the latest 1-minute candle range for stop/target detection.
     """
 
     def __init__(
@@ -43,9 +44,15 @@ class PaperTradingRunner:
         exited_symbols = set()
 
         for symbol in list(self.session.paper_trader.positions):
-            price = self._current_price(symbol)
+            market = self._current_market(symbol)
+            price = float(market["close"])
             current_prices[symbol] = price
-            trade = self.session.paper_trader.update_price(symbol, price)
+            trade = self.session.paper_trader.update_range(
+                symbol,
+                low=float(market["low"]),
+                high=float(market["high"]),
+                close=price,
+            )
             if trade is not None:
                 self.journal.record(trade)
                 closed.append(trade)
@@ -112,6 +119,12 @@ class PaperTradingRunner:
         summary["analytics"] = analytics
         return summary
 
-    def _current_price(self, symbol: str) -> float:
+    def _current_market(self, symbol: str):
         market = self.controller.load_market(symbol, timeframe="1m", limit=2)
-        return float(market["close"].iloc[-1])
+        required = {"high", "low", "close"}
+        if not required.issubset(market.columns):
+            raise ValueError("market data must contain high, low and close columns")
+        return market.iloc[-1]
+
+    def _current_price(self, symbol: str) -> float:
+        return float(self._current_market(symbol)["close"])
