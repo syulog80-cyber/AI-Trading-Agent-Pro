@@ -36,6 +36,38 @@ def test_paper_buy_hits_stop():
     assert trader.balance == pytest.approx(9_900.0)
 
 
+def test_paper_buy_candle_range_hits_target_even_when_close_is_below_target():
+    trader = PaperTrader(10_000)
+    trader.open_position(buy_plan(), "BTCUSDT")
+
+    trade = trader.update_range("BTCUSDT", low=99.0, high=109.0, close=101.0)
+
+    assert trade["reason"] == "TAKE_PROFIT"
+    assert trade["exit_price"] == pytest.approx(108.0)
+    assert trade["pnl"] == pytest.approx(200.0)
+
+
+def test_paper_buy_candle_range_hits_stop_even_when_close_is_above_stop():
+    trader = PaperTrader(10_000)
+    trader.open_position(buy_plan(), "BTCUSDT")
+
+    trade = trader.update_range("BTCUSDT", low=95.0, high=101.0, close=100.5)
+
+    assert trade["reason"] == "STOP_LOSS"
+    assert trade["exit_price"] == pytest.approx(96.0)
+    assert trade["pnl"] == pytest.approx(-100.0)
+
+
+def test_paper_candle_range_stop_wins_when_stop_and_target_are_both_touched():
+    trader = PaperTrader(10_000)
+    trader.open_position(buy_plan(), "BTCUSDT")
+
+    trade = trader.update_range("BTCUSDT", low=95.0, high=109.0, close=100.0)
+
+    assert trade["reason"] == "STOP_LOSS"
+    assert trade["exit_price"] == pytest.approx(96.0)
+
+
 def test_untradable_plan_is_rejected():
     trader = PaperTrader()
     plan = buy_plan()
