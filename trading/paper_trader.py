@@ -59,24 +59,53 @@ class PaperTrader:
         return dict(position)
 
     def update_price(self, symbol: str, price: float) -> Optional[Dict[str, Any]]:
-        """Evaluate a virtual position against its stop and target."""
+        """Evaluate a virtual position against a single current price."""
         symbol = str(symbol).upper()
         price = float(price)
         if price <= 0:
             raise ValueError("price must be positive")
+        return self.update_range(symbol, price, price, price)
+
+    def update_range(
+        self,
+        symbol: str,
+        low: float,
+        high: float,
+        close: Optional[float] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Evaluate a virtual position against an OHLC price range.
+
+        If both stop and target are touched in the same candle, stop-loss is
+        resolved first as the conservative assumption because intrabar order
+        cannot be known from OHLC data alone.
+        """
+        symbol = str(symbol).upper()
+        low = float(low)
+        high = float(high)
+        if low <= 0 or high <= 0 or low > high:
+            raise ValueError("low/high must be positive and low must not exceed high")
+        if close is None:
+            close = high if high == low else float(high + low) / 2.0
+        close = float(close)
+        if close <= 0:
+            raise ValueError("close must be positive")
 
         position = self.positions.get(symbol)
         if position is None:
             return None
 
         direction = position["direction"]
-        stop_hit = price <= position["stop_loss"] if direction == "BUY" else price >= position["stop_loss"]
-        target_hit = price >= position["take_profit"] if direction == "BUY" else price <= position["take_profit"]
+        if direction == "BUY":
+            stop_hit = low <= position["stop_loss"]
+            target_hit = high >= position["take_profit"]
+        else:
+            stop_hit = high >= position["stop_loss"]
+            target_hit = low <= position["take_profit"]
 
         if stop_hit:
-            return self.close_position(symbol, price, "STOP_LOSS")
+            return self.close_position(symbol, position["stop_loss"], "STOP_LOSS")
         if target_hit:
-            return self.close_position(symbol, price, "TAKE_PROFIT")
+            return self.close_position(symbol, position["take_profit"], "TAKE_PROFIT")
         return None
 
     def close_position(self, symbol: str, exit_price: float, reason: str = "MANUAL") -> Dict[str, Any]:
